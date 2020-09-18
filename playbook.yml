@@ -1,0 +1,74 @@
+- hosts: gcloud
+  become: true
+  vars_files:
+    - vars/default.yml
+
+  tasks:
+    - name: Install Prerequisites
+      apt: name={{ item }} update_cache=yes state=latest force_apt_get=yes
+      loop: [ 'aptitude', 'software-properties-common' ]
+
+    - name: Add ppa
+      apt_repository:
+        repo: ppa:ondrej/php
+        state: present
+        codename: trusty
+
+    - name: Apt update
+      become: true
+      command: apt update
+
+    - name: Install LEMP Packages
+      apt: name={{ item }} update_cache=yes state=latest
+      loop: [ 'nginx', 'mariadb-server', 'python3-pymysql', 'php-fpm', 'php-mysql', 'ufw' ]
+
+    # Nginx Configuration
+    - name: Sets Nginx conf file
+      template:
+        src: "config/nginx.conf.j2"
+        dest: "/etc/nginx/sites-available/{{ http_conf }}"
+
+    - name: Enables new site
+      file:
+        src: "/etc/nginx/sites-available/{{ http_conf }}"
+        dest: "/etc/nginx/sites-enabled/{{ http_conf }}"
+        state: link
+      notify: Reload Nginx
+
+    - name: Removes "default" site
+      file:
+        path: "/etc/nginx/sites-enabled/default"
+        state: absent
+      notify: Reload Nginx
+
+    # UFW Configuration
+    - name: "UFW - Allow Nginx"
+      ufw:
+        rule: allow
+        name: "Nginx HTTP"
+
+    - name: "UFW - Allow SSH"
+      ufw:
+        rule: allow
+        port: "ssh"
+
+    - name: enable UFW
+      ufw:
+        state: enabled
+
+    # Sets Up PHP Info Page
+    - name: Sets Up PHP Info Page
+      template:
+        src: "config/info.php.j2"
+        dest: "/var/www/html/info.php"
+
+  handlers:
+    - name: Reload Nginx
+      service:
+        name: nginx
+        state: reloaded
+
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted

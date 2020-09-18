@@ -1,0 +1,4 @@
+---
+mysql_root_password: "Aa@123456"
+http_host: "_"
+http_conf: "testing.conf"
